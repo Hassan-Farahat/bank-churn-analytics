@@ -23,6 +23,9 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 # 2. Database Connection & Data Querying (SQL Server)
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 2. Database Connection & Data Querying (SQL Server + CSV Fallback)
+# -----------------------------------------------------------------------------
 SERVER = "localhost"
 DATABASE = "BankChurnDB"
 DRIVER = "ODBC Driver 17 for SQL Server"
@@ -30,50 +33,63 @@ DRIVER = "ODBC Driver 17 for SQL Server"
 
 @st.cache_data(ttl=600)
 def load_data():
-    try: 
+    try:
         connection_string = (
             f"mssql+pyodbc://@{SERVER}/{DATABASE}?driver={DRIVER}&trusted_connection=yes"
         )
         engine = create_engine(connection_string)
         query = "SELECT * FROM bank_churn"
         df = pd.read_sql_query(query, engine)
-        return df
     except Exception:
         csv_path = "data/Churn_Modelling.csv"
         df = pd.read_csv(csv_path)
 
-        # Standardize column names to lowercase
-        df.columns = [c.lower() for c in df.columns]
-        # Generate derived feature columns if loading from raw CSV
-        if "is_active_member_label" not in df.columns and "is_active_member" in df.columns:
-            df["is_active_member_label"] = df["is_active_member"].map(
-                {1: "Active", 0: "Inactive"}
-            )
+    # 1. Lowercase all column names
+    df.columns = [str(c).lower().strip() for c in df.columns]
 
-        if "churn_status" not in df.columns and "exited" in df.columns:
-            df["churn_status"] = df["exited"].map({1: "Churned", 0: "Retained"})
+    # 2. Standardize column names from Kaggle CSV to snake_case
+    col_mapping = {
+        "customerid": "customer_id",
+        "creditscore": "credit_score",
+        "numofproducts": "num_of_products",
+        "hascrcard": "has_cr_card",
+        "isactivemember": "is_active_member",
+        "estimatedsalary": "estimated_salary",
+    }
+    df = df.rename(columns=col_mapping)
 
-        if "age_group" not in df.columns and "age" in df.columns:
-            df["age_group"] = pd.cut(
-                df["age"],
-                bins=[-1, 29, 39, 49, 59, 150],
-                labels=["< 30", "30-39", "40-49", "50-59", "60+"],
-            )
+    # 3. Generate derived feature columns
+    if "is_active_member_label" not in df.columns and "is_active_member" in df.columns:
+        df["is_active_member_label"] = df["is_active_member"].map(
+            {1: "Active", 0: "Inactive"}
+        )
 
-        if "credit_tier" not in df.columns and "credit_score" in df.columns:
-            df["credit_tier"] = pd.cut(
-                df["credit_score"],
-                bins=[0, 579, 669, 739, 799, 1000],
-                labels=[
-                    "Poor (< 580)",
-                    "Fair (580-669)",
-                    "Good (670-739)",
-                    "Very Good (740-799)",
-                    "Excellent (800+)",
-                ],
-            )
+    if "churn_status" not in df.columns and "exited" in df.columns:
+        df["churn_status"] = df["exited"].map({1: "Churned", 0: "Retained"})
 
-        return df
+    if "age_group" not in df.columns and "age" in df.columns:
+        df["age_group"] = pd.cut(
+            df["age"],
+            bins=[-1, 29, 39, 49, 59, 150],
+            labels=["< 30", "30-39", "40-49", "50-59", "60+"],
+        )
+
+    if "credit_tier" not in df.columns and "credit_score" in df.columns:
+        df["credit_tier"] = pd.cut(
+            df["credit_score"],
+            bins=[0, 579, 669, 739, 799, 1000],
+            labels=[
+                "Poor (< 580)",
+                "Fair (580-669)",
+                "Good (670-739)",
+                "Very Good (740-799)",
+                "Excellent (800+)",
+            ],
+        )
+
+    return df
+
+
 df = load_data()
 # -----------------------------------------------------------------------------
 # 3. Sidebar Filters
