@@ -44,4 +44,5 @@ Analyzing $10,000$ bank customer records revealed an overall churn rate of **20.
 ├── requirements.txt         # Required Python dependencies
 ├── data\Churn_Modelling.csv # dataset csv file
 ├── src\db_ingestion.ipynb   # Data cleaning & push data to SQL  file
+├── .gitignore               # Ignore system-generated Python caches.
 └── README.md                # Project documentation
